@@ -8,10 +8,27 @@ import models
 import schemas
 from database import engine, SessionLocal
 from auth import hash_password, verify_password, create_access_token, SECRET_KEY, ALGORITHM
+from fastapi.middleware.cors import CORSMiddleware
+import os
 
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Resume Builder API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        origin.strip()
+        for origin in os.getenv(
+            "FRONTEND_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5173",
+        ).split(",")
+        if origin.strip()
+    ],
+    allow_credentials=True,
+    allow_methods=["*"], 
+    allow_headers=["*"], 
+)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
