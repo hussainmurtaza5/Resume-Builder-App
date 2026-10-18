@@ -1,6 +1,17 @@
 from sqlalchemy import Column, Integer, String, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from database import Base
+from datetime import datetime, timezone
+from sqlalchemy import DateTime
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    resumes = relationship("Resume", back_populates="user")
 
 
 class Resume(Base):
@@ -12,10 +23,13 @@ class Resume(Base):
     phone = Column(String(30), nullable=True)
     summary = Column(Text, default="")
 
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user = relationship("User", back_populates="resumes")
+
     experiences = relationship(
         "Experience",
         back_populates="resume",
-        # cascade="all, delete-orphan",
+        cascade="all, delete-orphan",
     )
 
 
