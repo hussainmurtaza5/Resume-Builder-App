@@ -56,3 +56,11 @@ class ResumeResponse(ResumeBase):
 
     class Config:
         from_attributes = True
+
+class AIGenerateRequest(BaseModel):
+    full_name: str
+    experiences: list[dict] = []
+    current_summary: str = ""
+
+class AIGenerateResponse(BaseModel):
+    summary: str

@@ -3,17 +3,24 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
+from dotenv import load_dotenv
+from groq import Groq
+import os
+
+load_dotenv()
 
 import models
 import schemas
 from database import engine, SessionLocal
 from auth import hash_password, verify_password, create_access_token, SECRET_KEY, ALGORITHM
 from fastapi.middleware.cors import CORSMiddleware
-import os
 
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Resume Builder API")
+
+groq_api_key = os.getenv("GROQ_API_KEY")
+groq_client = Groq(api_key=groq_api_key) if groq_api_key else None
 
 app.add_middleware(
     CORSMiddleware,
@@ -202,3 +209,59 @@ def delete_resume(
     db.delete(resume)
     db.commit()
     return
+
+@app.post("/ai/generate-summary", response_model=schemas.AIGenerateResponse)
+def generate_summary(
+    payload: schemas.AIGenerateRequest,
+    current_user: models.User = Depends(get_current_user)
+):
+    if not groq_client:
+        raise HTTPException(
+            status_code=500,
+            detail="GROQ_API_KEY is not configured on the server."
+        )
+
+    # 1. Build the prompt for the AI
+    exp_lines = []
+    for e in payload.experiences:
+        role = e.get("role", "Role")
+        company = e.get("company", "Company")
+        years = e.get("years", "N/A")
+        exp_lines.append(f"- {role} at {company} for {years} years")
+
+    exp_text = "\n".join(exp_lines)
+    
+    prompt = f"""
+    You are an expert resume writer. 
+    Write a professional, 3-sentence summary for {payload.full_name}.
+    Here is their experience:
+    {exp_text if exp_text else "No experience added yet."}
+    
+    Here is their current draft (improve it):
+    "{payload.current_summary}"
+    
+    Return ONLY the summary text, no quotes, no extra formatting.
+    """
+
+    # 2. Call the AI
+    try:
+        model_name = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
+        chat_completion = groq_client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model=model_name,
+            temperature=0.7,
+        )
+        ai_text = chat_completion.choices[0].message.content.strip()
+        return {"summary": ai_text}
+    except groq.RateLimitError:
+        raise HTTPException(
+            status_code=429,
+            detail="AI rate limit reached. Please wait a few seconds and try again."
+        )
+    except groq.APIError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"AI provider error: {getattr(e, 'message', str(e))}"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
