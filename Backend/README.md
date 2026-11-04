@@ -20,6 +20,8 @@ Env vars (`.env`): `GROQ_API_KEY`, `GROQ_MODEL`, `FRONTEND_ORIGINS`, `SECRET_KEY
 | --- | --- | --- | --- |
 | POST | `/register` | `{email, password}` | user |
 | POST | `/login` | form `username`/`password` | `{access_token, token_type}` |
+| GET | `/users/me` | — | current authenticated user |
+| GET | `/me` | — | alias for `/users/me` |
 
 All other endpoints need `Authorization: Bearer <access_token>`.
 
@@ -33,6 +35,8 @@ All other endpoints need `Authorization: Bearer <access_token>`.
 | PATCH | `/resumes/{resume_id}` | partial update of the header fields |
 | DELETE | `/resumes/{resume_id}` | deletes the resume and all sections |
 | POST | `/resumes/{resume_id}/duplicate` | clone a resume for a specific job application |
+| PATCH | `/resumes/{resume_id}/reorder` | batch reorder items in a section (`{section, ids}`) |
+| GET | `/resumes/{resume_id}/export/json` | export standard JSON Resume format (jsonresume.org) |
 
 `duplicate` takes an optional body to override the clone:
 
@@ -43,12 +47,45 @@ All other endpoints need `Authorization: Bearer <access_token>`.
 Resume fields: `title`, `full_name`, `email`, `phone`, `location`, `linkedin_url`,
 `github_url`, `portfolio_url`, `summary`.
 
+## Job applications
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| POST | `/applications` | create an application and an independent copy of a resume |
+| GET | `/applications` | list applications; supports `status`, `limit` (1–100), and `offset` |
+| GET | `/applications/{application_id}` | details, saved job description, analysis, and tailored resume |
+| PATCH | `/applications/{application_id}` | update job details, notes, or status |
+| POST | `/applications/{application_id}/analyze` | analyze the saved tailored resume and persist the result |
+| DELETE | `/applications/{application_id}` | delete the application and its tailored resume copy |
+
+Create an application with a base resume ID, employer, role, and job description:
+
+```json
+{
+  "resume_id": 1,
+  "company": "Acme",
+  "role": "Backend Engineer",
+  "job_url": "https://example.com/jobs/123",
+  "job_description": "Build and maintain reliable backend services...",
+  "notes": "Referred by a former colleague"
+}
+```
+
+Applications start with the `wishlist` status. Supported statuses are
+`wishlist`, `applied`, `interviewing`, `offer`, `rejected`, and `withdrawn`.
+The generated resume copy is independent of the source and can be edited with
+the normal resume endpoints. Analysis is an explicit action; provider errors
+leave the application intact and do not save a partial report. Deleting a
+source resume preserves the application and its tailored copy, while deleting
+an application's saved resume is only possible by deleting that application.
+
 ### Education — `/resumes/{resume_id}/educations`
 
 | Method | Path |
 | --- | --- |
 | POST | `/resumes/{resume_id}/educations` |
 | GET | `/resumes/{resume_id}/educations` |
+| GET | `/resumes/{resume_id}/educations/{edu_id}` |
 | PATCH | `/resumes/{resume_id}/educations/{edu_id}` |
 | DELETE | `/resumes/{resume_id}/educations/{edu_id}` |
 
@@ -61,6 +98,7 @@ Fields: `institution`, `degree`, `field_of_study`, `location`, `start_date`,
 | --- | --- |
 | POST | `/resumes/{resume_id}/experiences` |
 | GET | `/resumes/{resume_id}/experiences` |
+| GET | `/resumes/{resume_id}/experiences/{exp_id}` |
 | PATCH | `/resumes/{resume_id}/experiences/{exp_id}` |
 | DELETE | `/resumes/{resume_id}/experiences/{exp_id}` |
 
@@ -73,6 +111,7 @@ Fields: `company`, `role`, `years`, `location`, `start_date`, `end_date`,
 | --- | --- | --- |
 | POST | `/resumes/{resume_id}/skills` | one skill (`name`) and/or a batch (`names`) per category |
 | GET | `/resumes/{resume_id}/skills` | grouped by category |
+| GET | `/resumes/{resume_id}/skills/{skill_id}` | single skill |
 | PATCH | `/resumes/{resume_id}/skills/{skill_id}` | rename / recategorise |
 | DELETE | `/resumes/{resume_id}/skills/{skill_id}` | remove a skill |
 
@@ -95,6 +134,7 @@ Duplicates (same category + name) are ignored. `GET` returns:
 | --- | --- |
 | POST | `/resumes/{resume_id}/projects` |
 | GET | `/resumes/{resume_id}/projects` |
+| GET | `/resumes/{resume_id}/projects/{project_id}` |
 | PATCH | `/resumes/{resume_id}/projects/{project_id}` |
 | DELETE | `/resumes/{resume_id}/projects/{project_id}` |
 
@@ -107,6 +147,8 @@ Fields: `title`, `tech_stack` (list), `description`, `bullets` (list),
 | --- | --- | --- |
 | POST | `/ai/generate-summary` | `{full_name, experiences[], current_summary}` → `{summary}` |
 | POST | `/ai/rewrite-bullet-xyz` | Google "X-Y-Z" bullet rewriter |
+| POST | `/ai/tailor-resume` | ATS match score, keyword comparison & suggestions for a job description |
+| POST | `/ai/suggest-skills` | industry-standard skills for a target job title |
 
 `/ai/rewrite-bullet-xyz` takes a rough duty and returns 2–3 high-impact bullets
 following *"Accomplished [X], as measured by [Y], by doing [Z]"*:

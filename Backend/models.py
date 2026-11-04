@@ -135,3 +135,35 @@ class Project(Base):
 
     resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=False)
     resume = relationship("Resume", back_populates="projects")
+
+
+class Application(Base):
+    __tablename__ = "applications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company = Column(String(150), nullable=False)
+    role = Column(String(150), nullable=False)
+    job_url = Column(String(2048), nullable=True)
+    job_description = Column(Text, nullable=False)
+    status = Column(String(20), nullable=False, default="wishlist", index=True)
+    notes = Column(Text, nullable=False, default="")
+    match_score = Column(Integer, nullable=True)
+    analysis = Column(JSON, nullable=True)
+    created_at = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+    analyzed_at = Column(DateTime, nullable=True)
+
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    source_resume_id = Column(
+        Integer, ForeignKey("resumes.id", ondelete="SET NULL"), nullable=True
+    )
+    tailored_resume_id = Column(
+        Integer, ForeignKey("resumes.id"), nullable=False, unique=True
+    )

@@ -1,4 +1,5 @@
-from typing import Any
+from datetime import datetime
+from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
@@ -38,7 +39,7 @@ class BulletListMixin(BaseModel):
 
 
 # ---------------- Experience ----------------
-class ExperienceBase(BaseModel):
+class ExperienceBase(BulletListMixin):
     company: str = Field(min_length=1, max_length=150)
     role: str = Field(min_length=1, max_length=150)
     years: int = Field(default=0, ge=0, le=60)
@@ -54,7 +55,7 @@ class ExperienceBase(BaseModel):
     sort_order: int = 0
 
 
-class ExperienceCreate(ExperienceBase, BulletListMixin):
+class ExperienceCreate(ExperienceBase):
     pass
 
 
@@ -78,7 +79,7 @@ class ExperienceUpdate(BaseModel):
         return value
 
 
-class ExperienceResponse(ExperienceBase, BulletListMixin):
+class ExperienceResponse(ExperienceBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -153,6 +154,14 @@ class SkillUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=60)
     sort_order: int | None = None
 
+    @field_validator("category", "name", mode="before")
+    @classmethod
+    def _clean_str(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            val = value.strip()
+            return val if val else None
+        return value
+
 
 class SkillResponse(SkillBase):
     model_config = ConfigDict(from_attributes=True)
@@ -168,7 +177,7 @@ class SkillCategoryResponse(BaseModel):
 
 
 # ---------------- Projects ----------------
-class ProjectBase(BaseModel):
+class ProjectBase(BulletListMixin):
     title: str = Field(min_length=1, max_length=150)
     tech_stack: list[str] = Field(default_factory=list, max_length=30)
     description: str = Field(default="", max_length=3000)
@@ -177,7 +186,7 @@ class ProjectBase(BaseModel):
     sort_order: int = 0
 
 
-class ProjectCreate(ProjectBase, BulletListMixin):
+class ProjectCreate(ProjectBase):
     pass
 
 
@@ -198,7 +207,7 @@ class ProjectUpdate(BaseModel):
         return value
 
 
-class ProjectResponse(ProjectBase, BulletListMixin):
+class ProjectResponse(ProjectBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -276,3 +285,81 @@ class AIRewriteBulletRequest(BaseModel):
 class AIRewriteBulletResponse(BaseModel):
     variants: list[str] = Field(default_factory=list)
     formula: str = "Accomplished [X], as measured by [Y], by doing [Z]"
+
+
+class AITailorRequest(BaseModel):
+    resume_id: int | None = None
+    resume_text: str | None = Field(default=None, max_length=15000)
+    job_description: str = Field(min_length=20, max_length=15000)
+    target_role: str | None = Field(default=None, max_length=150)
+
+
+class AITailorResponse(BaseModel):
+    match_score: int = Field(ge=0, le=100)
+    matched_skills: list[str] = Field(default_factory=list)
+    missing_skills: list[str] = Field(default_factory=list)
+    strengths: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+
+
+# ---------------- Job applications ----------------
+ApplicationStatus = Literal[
+    "wishlist", "applied", "interviewing", "offer", "rejected", "withdrawn"
+]
+
+
+class ApplicationCreate(BaseModel):
+    resume_id: int
+    company: str = Field(min_length=1, max_length=150)
+    role: str = Field(min_length=1, max_length=150)
+    job_url: str | None = Field(default=None, max_length=2048)
+    job_description: str = Field(min_length=20, max_length=15000)
+    notes: str = Field(default="", max_length=5000)
+
+
+class ApplicationUpdate(BaseModel):
+    company: str | None = Field(default=None, min_length=1, max_length=150)
+    role: str | None = Field(default=None, min_length=1, max_length=150)
+    job_url: str | None = Field(default=None, max_length=2048)
+    job_description: str | None = Field(default=None, min_length=20, max_length=15000)
+    status: ApplicationStatus | None = None
+    notes: str | None = Field(default=None, max_length=5000)
+
+
+class ApplicationSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    company: str
+    role: str
+    job_url: str | None
+    status: ApplicationStatus
+    notes: str
+    source_resume_id: int | None
+    tailored_resume_id: int
+    match_score: int | None
+    analysis: AITailorResponse | None
+    created_at: datetime
+    updated_at: datetime
+    analyzed_at: datetime | None
+
+
+class ApplicationDetail(ApplicationSummary):
+    job_description: str
+    tailored_resume: ResumeResponse
+
+
+class AISuggestSkillsRequest(BaseModel):
+    job_title: str = Field(min_length=2, max_length=150)
+    industry: str | None = Field(default=None, max_length=100)
+
+
+class AISuggestSkillsResponse(BaseModel):
+    job_title: str
+    suggested_skills: dict[str, list[str]] = Field(default_factory=dict)
+
+
+# ---------------- Reorder ----------------
+class ReorderRequest(BaseModel):
+    section: str = Field(pattern="^(experiences|educations|skills|projects)$")
+    ids: list[int] = Field(min_length=1, max_length=200)
