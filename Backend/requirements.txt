@@ -34,6 +34,7 @@ pydantic==2.13.4
 pydantic_core==2.46.4
 pygame-ce==2.5.7
 PyJWT==2.13.0
+reportlab==5.1.0
 python-dotenv==1.2.2
 python-jose==3.5.0
 python-multipart==0.0.32
@@ -55,4 +56,4 @@ tzdata==2026.2
 uv==0.11.28
 uvicorn==0.51.0
 wheel==0.47.0
-﻿annotated-doc==0.0.4
+annotated-doc==0.0.4

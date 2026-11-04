@@ -12,7 +12,12 @@ uvicorn main:app --reload
 On startup the app creates any missing tables and runs the lightweight column
 migrations in `migrations.py`, so an existing database is upgraded in place.
 
-Env vars (`.env`): `GROQ_API_KEY`, `GROQ_MODEL`, `FRONTEND_ORIGINS`, `SECRET_KEY`.
+Env vars (`.env`): `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_MAX_TOKENS`,
+`FRONTEND_ORIGINS`, `SECRET_KEY`, and `APP_ENV`. Copy `.env.example` as a
+starting point. Keep all AI credentials and signing keys in the backend/Vercel
+environment only; never add them to frontend `VITE_*` variables or commit them.
+Production requires a strong `SECRET_KEY`, exact `FRONTEND_ORIGINS` values, and
+`APP_ENV=production`.
 
 ## Auth
 
@@ -37,6 +42,9 @@ All other endpoints need `Authorization: Bearer <access_token>`.
 | POST | `/resumes/{resume_id}/duplicate` | clone a resume for a specific job application |
 | PATCH | `/resumes/{resume_id}/reorder` | batch reorder items in a section (`{section, ids}`) |
 | GET | `/resumes/{resume_id}/export/json` | export standard JSON Resume format (jsonresume.org) |
+| GET | `/resumes/{resume_id}/export/pdf` | download the resume as a PDF |
+| GET | `/resumes/{resume_id}/export/word` | download the resume as a DOCX file |
+| GET | `/resumes/{resume_id}/export?format=pdf` | generic download route for PDF or Word (`pdf` / `word`) |
 
 `duplicate` takes an optional body to override the clone:
 

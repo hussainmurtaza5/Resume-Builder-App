@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any, Literal
+from urllib.parse import urlparse
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
@@ -25,6 +26,17 @@ class Token(BaseModel):
 def _clean_bullets(value: list[str]) -> list[str]:
     """Strip bullet strings and drop empty ones."""
     return [b.strip() for b in value if b and b.strip()]
+
+
+def _safe_http_url(value: Any) -> Any:
+    if value is None or value == "":
+        return value
+    if not isinstance(value, str):
+        return value
+    parsed = urlparse(value.strip())
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("URL must use http or https")
+    return value.strip()
 
 
 class BulletListMixin(BaseModel):
@@ -225,6 +237,10 @@ class ResumeBase(BaseModel):
     portfolio_url: str | None = Field(default=None, max_length=255)
     summary: str = Field(default="", max_length=2000)
 
+    _validate_urls = field_validator(
+        "linkedin_url", "github_url", "portfolio_url", mode="before"
+    )(_safe_http_url)
+
 
 class ResumeCreate(ResumeBase):
     experiences: list[ExperienceCreate] = Field(default_factory=list)
@@ -316,6 +332,8 @@ class ApplicationCreate(BaseModel):
     job_description: str = Field(min_length=20, max_length=15000)
     notes: str = Field(default="", max_length=5000)
 
+    _validate_job_url = field_validator("job_url", mode="before")(_safe_http_url)
+
 
 class ApplicationUpdate(BaseModel):
     company: str | None = Field(default=None, min_length=1, max_length=150)
@@ -324,6 +342,8 @@ class ApplicationUpdate(BaseModel):
     job_description: str | None = Field(default=None, min_length=20, max_length=15000)
     status: ApplicationStatus | None = None
     notes: str | None = Field(default=None, max_length=5000)
+
+    _validate_job_url = field_validator("job_url", mode="before")(_safe_http_url)
 
 
 class ApplicationSummary(BaseModel):

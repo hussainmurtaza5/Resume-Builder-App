@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta, timezone
+import os
+import secrets
 from jose import jwt
 import bcrypt
 
@@ -19,7 +21,16 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 # ---------- JWT ----------
-SECRET_KEY = "dev-secret-change-me-in-production"
+APP_ENV = os.getenv("APP_ENV", "development").lower()
+configured_secret = os.getenv("SECRET_KEY")
+if configured_secret:
+    SECRET_KEY = configured_secret
+elif APP_ENV in {"production", "prod"}:
+    raise RuntimeError("SECRET_KEY must be configured in production")
+else:
+    # Development-only fallback. It intentionally changes on every restart so a
+    # missing production secret can never silently become a permanent key.
+    SECRET_KEY = secrets.token_urlsafe(32)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
