@@ -1,4 +1,9 @@
 venv
+.venv/
+cloudflare/.venv-workers/
+cloudflare/python_modules/
+cloudflare/.wrangler/
+cloudflare/.dev.vars
 __pycache__/
 .env
 .vscode

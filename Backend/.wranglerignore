@@ -1,0 +1,13 @@
+.env
+resume_builder.db
+venv/
+.venv/
+cloudflare/.venv/
+cloudflare/.venv-workers/
+cloudflare/python_modules/
+cloudflare/.wrangler/
+cloudflare/.dev.vars
+cloudflare/uv.lock
+cloudflare/pylock.toml
+__pycache__/
+*.py[cod]

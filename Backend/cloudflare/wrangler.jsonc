@@ -1,0 +1,22 @@
+{
+  "name": "resume-builder-api",
+  "main": "src/worker_entry.py",
+  "compatibility_date": "2026-11-09",
+  "compatibility_flags": ["python_workers"],
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "APP_ENV": "production",
+    "FRONTEND_ORIGINS": "https://your-frontend.pages.dev",
+    "GROQ_MODEL": "qwen/qwen3.8-27b",
+    "GROQ_MAX_TOKENS": "1200"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "resume-builder-db",
+      "database_id": "replace-with-d1-database-id"
+    }
+  ]
+}

@@ -21,13 +21,12 @@ from jose import JWTError, jwt
 from dotenv import load_dotenv
 from xml.sax.saxutils import escape
 import groq
-from groq import Groq
+from groq import AsyncGroq, Groq
 import io
 import json
 import logging
 import os
 import re
-import threading
 import time
 import unicodedata
 import zipfile
@@ -45,7 +44,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from migrations import run_migrations
 
 models.Base.metadata.create_all(bind=engine)
-run_migrations(engine)
+if os.getenv("CLOUDFLARE_WORKERS") != "1":
+    run_migrations(engine)
 
 APP_ENV = os.getenv("APP_ENV", "development").lower()
 app = FastAPI(
@@ -55,7 +55,13 @@ app = FastAPI(
 )
 
 groq_api_key = os.getenv("GROQ_API_KEY")
-groq_client = Groq(api_key=groq_api_key) if groq_api_key else None
+workers_runtime = os.getenv("CLOUDFLARE_WORKERS") == "1"
+if groq_api_key and workers_runtime:
+    groq_client = AsyncGroq(api_key=groq_api_key)
+elif groq_api_key:
+    groq_client = Groq(api_key=groq_api_key)
+else:
+    groq_client = None
 
 frontend_origins = [
     origin.strip()
@@ -114,7 +120,6 @@ class RateLimitMiddleware:
     def __init__(self, app):
         self.app = app
         self.events = defaultdict(deque)
-        self.lock = threading.Lock()
         self.rules = {
             "auth": (10, 60),
             "ai": (20, 60),
@@ -150,14 +155,13 @@ class RateLimitMiddleware:
         key = f"{client}:{rule_name}"
         now = time.monotonic()
         retry_after = None
-        with self.lock:
-            bucket = self.events[key]
-            while bucket and now - bucket[0] >= window:
-                bucket.popleft()
-            if len(bucket) >= limit:
-                retry_after = max(1, int(window - (now - bucket[0])))
-            else:
-                bucket.append(now)
+        bucket = self.events[key]
+        while bucket and now - bucket[0] >= window:
+            bucket.popleft()
+        if len(bucket) >= limit:
+            retry_after = max(1, int(window - (now - bucket[0])))
+        else:
+            bucket.append(now)
 
         if retry_after is not None:
             response = JSONResponse(
@@ -1632,7 +1636,7 @@ def delete_project(
 # ------------------------------------------------------------------
 # AI
 # ------------------------------------------------------------------
-def _groq_chat(prompt: str, temperature: float = 0.7) -> str:
+async def _groq_chat(prompt: str, temperature: float = 0.7) -> str:
     """Send a prompt to Groq and return the raw completion text."""
     if not groq_client:
         raise HTTPException(
@@ -1646,12 +1650,13 @@ def _groq_chat(prompt: str, temperature: float = 0.7) -> str:
     except ValueError:
         max_tokens = 1200
     try:
-        chat_completion = groq_client.chat.completions.create(
+        completion = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model=model_name,
             temperature=temperature,
             max_tokens=max_tokens,
         )
+        chat_completion = await completion if workers_runtime else completion
         content = chat_completion.choices[0].message.content or ""
         return content.strip()
     except groq.RateLimitError:
@@ -1706,7 +1711,7 @@ def _parse_bullet_variants(raw: str) -> list[str]:
 
 
 @app.post("/ai/generate-summary", response_model=schemas.AIGenerateResponse)
-def generate_summary(
+async def generate_summary(
     payload: schemas.AIGenerateRequest,
     current_user: models.User = Depends(get_current_user)
 ):
@@ -1733,12 +1738,12 @@ def generate_summary(
     """
 
     # 2. Call the AI
-    ai_text = _groq_chat(prompt, temperature=0.7)
+    ai_text = await _groq_chat(prompt, temperature=0.7)
     return {"summary": ai_text}
 
 
 @app.post("/ai/rewrite-bullet-xyz", response_model=schemas.AIRewriteBulletResponse)
-def rewrite_bullet_xyz(
+async def rewrite_bullet_xyz(
     payload: schemas.AIRewriteBulletRequest,
     current_user: models.User = Depends(get_current_user),
 ):
@@ -1783,7 +1788,7 @@ def rewrite_bullet_xyz(
      "Led the migration of 12 legacy tables, reducing nightly ETL failures to zero by adding idempotent upserts."]
     """
 
-    raw = _groq_chat(prompt, temperature=0.8)
+    raw = await _groq_chat(prompt, temperature=0.8)
     variants = _parse_bullet_variants(raw)
     if not variants:
         raise HTTPException(
@@ -1794,16 +1799,16 @@ def rewrite_bullet_xyz(
 
 
 @app.post("/ai/tailor-resume", response_model=schemas.AITailorResponse)
-def tailor_resume(
+async def tailor_resume(
     payload: schemas.AITailorRequest,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     """Analyze a resume against a target job description for ATS matching and improvements."""
-    return _tailor_resume_analysis(payload, db, current_user)
+    return await _tailor_resume_analysis(payload, db, current_user)
 
 
-def _tailor_resume_analysis(
+async def _tailor_resume_analysis(
     payload: schemas.AITailorRequest,
     db: Session,
     current_user: models.User,
@@ -1871,7 +1876,7 @@ def _tailor_resume_analysis(
     }}
     """
 
-    raw = _groq_chat(prompt, temperature=0.3)
+    raw = await _groq_chat(prompt, temperature=0.3)
     text = raw.strip()
     text = re.sub(r"^```(?:json)?", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"```$", "", text).strip()
@@ -1897,13 +1902,13 @@ def _tailor_resume_analysis(
     "/applications/{application_id}/analyze",
     response_model=schemas.ApplicationDetail,
 )
-def analyze_application(
+async def analyze_application(
     application_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     application = _owned_application(db, application_id, current_user)
-    analysis = _tailor_resume_analysis(
+    analysis = await _tailor_resume_analysis(
         schemas.AITailorRequest(
             resume_id=application.tailored_resume_id,
             job_description=application.job_description,
@@ -1921,7 +1926,7 @@ def analyze_application(
 
 
 @app.post("/ai/suggest-skills", response_model=schemas.AISuggestSkillsResponse)
-def suggest_skills(
+async def suggest_skills(
     payload: schemas.AISuggestSkillsRequest,
     current_user: models.User = Depends(get_current_user),
 ):
@@ -1948,7 +1953,7 @@ def suggest_skills(
     }}
     """
 
-    raw = _groq_chat(prompt, temperature=0.5)
+    raw = await _groq_chat(prompt, temperature=0.5)
     text = raw.strip()
     text = re.sub(r"^```(?:json)?", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"```$", "", text).strip()

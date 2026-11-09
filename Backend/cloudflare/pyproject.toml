@@ -1,0 +1,23 @@
+[project]
+name = "resume-builder-backend"
+version = "0.1.0"
+description = "Resume Builder FastAPI backend for Cloudflare Workers"
+requires-python = ">=3.13"
+dependencies = [
+    "bcrypt==5.0.0",
+    "email-validator==2.1.0",
+    "fastapi==0.139.0",
+    "groq==1.7.0",
+    "python-dotenv==1.2.2",
+    "python-jose==3.5.0",
+    "python-multipart==0.0.32",
+    "reportlab==5.1.0",
+    "sqlalchemy==2.0.51",
+    "sqlalchemy-cloudflare-d1",
+]
+
+[dependency-groups]
+dev = [
+    "workers-py",
+    "workers-runtime-sdk",
+]

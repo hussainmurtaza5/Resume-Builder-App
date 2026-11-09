@@ -184,3 +184,34 @@ invented numbers.
   `project_id` from another resume cannot be modified.
 - `sort_order` controls the order sections are returned in (ascending).
 - Dates are free-form strings (`"Jan 2021"`) so the frontend controls formatting.
+
+## Cloudflare Workers
+
+The Worker project is in `cloudflare/` so the existing `requirements.txt` remains
+available for local and conventional Python deployments. It uses Python Workers,
+FastAPI, SQLAlchemy, and a D1 binding.
+The shared backend modules live in `cloudflare/src/` so Pywrangler only scans the
+application source instead of the backend's local virtual environments;
+`main.py` preserves the usual `uvicorn main:app` entrypoint.
+
+1. Install Node.js and `uv` 0.13.4 or newer, then change to `Backend/cloudflare`.
+2. Authenticate with Cloudflare: `uv run pywrangler login`.
+3. Create a fresh D1 database: `uv run pywrangler d1 create resume-builder-db`.
+   Copy the returned database ID into `wrangler.jsonc`.
+4. Replace `FRONTEND_ORIGINS` in `wrangler.jsonc` with the exact deployed
+   frontend origin.
+5. Add production secrets without committing them:
+
+   ```sh
+   uv run pywrangler secret put SECRET_KEY
+   uv run pywrangler secret put GROQ_API_KEY
+   ```
+
+   Use a strong random `SECRET_KEY`. `GROQ_API_KEY` is required only for the AI
+   endpoints.
+6. Test locally with `uv run pywrangler dev`, then deploy with
+   `uv run pywrangler deploy`.
+
+The Worker creates its schema in D1 when it starts. This setup uses a new,
+empty database; it does not import data from `resume_builder.db`. D1 data is
+persistent, unlike a SQLite file in a Worker bundle.
