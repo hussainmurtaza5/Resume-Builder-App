@@ -199,6 +199,10 @@ reasons; `main.py` is the entrypoint Vercel looks for.
    `Backend`. The FastAPI preset is then detected automatically: `main.py`
    exports `app`, `requirements.txt` provides the dependencies, and
    `.python-version` pins Python 3.14.
+   Pointing it at `Backend/cloudflare` instead fails with
+   `FASTAPI_ENTRYPOINT_NOT_FOUND`: that folder has no `requirements.txt`
+   and no entrypoint at its top level, only the Cloudflare Workers
+   `pyproject.toml` and `src/` modules.
 2. Attach a Postgres database (Vercel Postgres / Neon) and set its connection
    string as `DATABASE_URL` in the project's environment variables. SQLite does
    not persist on Vercel — the filesystem is read-only apart from `/tmp` — so
