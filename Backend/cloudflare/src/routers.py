@@ -1,3 +1,10 @@
+import sys
+from pathlib import Path
+
+_backend_src = str(Path(__file__).resolve().parent)
+if _backend_src not in sys.path:
+    sys.path.insert(0, _backend_src)
+
 from datetime import datetime, timezone
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response

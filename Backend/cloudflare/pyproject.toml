@@ -2,7 +2,7 @@
 name = "resume-builder-backend"
 version = "0.1.0"
 description = "Resume Builder FastAPI backend for Cloudflare Workers"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
     "anyio>=4.16.0",
     "bcrypt==5.0.0",
@@ -23,3 +23,6 @@ dev = [
     "workers-py",
     "workers-runtime-sdk",
 ]
+
+[tool.vercel]
+entrypoint = "src.routers:app"
