@@ -2,18 +2,6 @@ from datetime import datetime, timezone
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.platypus import (
-    HRFlowable,
-    KeepTogether,
-    Paragraph,
-    SimpleDocTemplate,
-    Spacer,
-)
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -38,13 +26,14 @@ logger = logging.getLogger(__name__)
 
 import models
 import schemas
-from database import engine, SessionLocal
+import database
+from database import engine
 from auth import hash_password, verify_password, create_access_token, SECRET_KEY, ALGORITHM
 from fastapi.middleware.cors import CORSMiddleware
 from migrations import run_migrations
 
-models.Base.metadata.create_all(bind=engine)
 if os.getenv("CLOUDFLARE_WORKERS") != "1":
+    models.Base.metadata.create_all(bind=engine)
     run_migrations(engine)
 
 APP_ENV = os.getenv("APP_ENV", "development").lower()
@@ -54,14 +43,20 @@ app = FastAPI(
     redoc_url=None if APP_ENV in {"production", "prod"} else "/redoc",
 )
 
-groq_api_key = os.getenv("GROQ_API_KEY")
-workers_runtime = os.getenv("CLOUDFLARE_WORKERS") == "1"
-if groq_api_key and workers_runtime:
-    groq_client = AsyncGroq(api_key=groq_api_key)
-elif groq_api_key:
-    groq_client = Groq(api_key=groq_api_key)
-else:
-    groq_client = None
+_groq_client = None
+
+
+def get_groq_client():
+    global _groq_client
+    if _groq_client is not None:
+        return _groq_client
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    workers_runtime = os.getenv("CLOUDFLARE_WORKERS") == "1"
+    if groq_api_key and workers_runtime:
+        _groq_client = AsyncGroq(api_key=groq_api_key)
+    elif groq_api_key:
+        _groq_client = Groq(api_key=groq_api_key)
+    return _groq_client
 
 frontend_origins = [
     origin.strip()
@@ -184,7 +179,7 @@ XYZ_FORMULA = "Accomplished [X], as measured by [Y], by doing [Z]"
 
 
 def get_db():
-    db = SessionLocal()
+    db = database.SessionLocal()
     try:
         yield db
     finally:
@@ -201,7 +196,7 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, str(SECRET_KEY), algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
@@ -353,6 +348,19 @@ def _resume_document_lines(resume: models.Resume) -> list[str]:
 
 
 def _build_pdf_resume_bytes(resume: models.Resume) -> bytes:
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import (
+        HRFlowable,
+        KeepTogether,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+    )
+
     buffer = io.BytesIO()
     document = SimpleDocTemplate(
         buffer,
@@ -1638,7 +1646,8 @@ def delete_project(
 # ------------------------------------------------------------------
 async def _groq_chat(prompt: str, temperature: float = 0.7) -> str:
     """Send a prompt to Groq and return the raw completion text."""
-    if not groq_client:
+    client = get_groq_client()
+    if not client:
         raise HTTPException(
             status_code=500,
             detail="GROQ_API_KEY is not configured on the server."
@@ -1650,12 +1659,13 @@ async def _groq_chat(prompt: str, temperature: float = 0.7) -> str:
     except ValueError:
         max_tokens = 1200
     try:
-        completion = groq_client.chat.completions.create(
+        completion = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model=model_name,
             temperature=temperature,
             max_tokens=max_tokens,
         )
+        workers_runtime = os.getenv("CLOUDFLARE_WORKERS") == "1"
         chat_completion = await completion if workers_runtime else completion
         content = chat_completion.choices[0].message.content or ""
         return content.strip()

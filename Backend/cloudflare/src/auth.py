@@ -21,16 +21,40 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 # ---------- JWT ----------
-APP_ENV = os.getenv("APP_ENV", "development").lower()
-configured_secret = os.getenv("SECRET_KEY")
-if configured_secret:
-    SECRET_KEY = configured_secret
-elif APP_ENV in {"production", "prod"}:
-    raise RuntimeError("SECRET_KEY must be configured in production")
-else:
-    # Development-only fallback. It intentionally changes on every restart so a
-    # missing production secret can never silently become a permanent key.
-    SECRET_KEY = secrets.token_urlsafe(32)
+_DEV_SECRET = None
+
+
+def get_secret_key() -> str:
+    global _DEV_SECRET
+    configured_secret = os.getenv("SECRET_KEY")
+    if configured_secret:
+        return configured_secret
+    app_env = os.getenv("APP_ENV", "development").lower()
+    if app_env in {"production", "prod"} and os.getenv("CLOUDFLARE_WORKERS") != "1":
+        raise RuntimeError("SECRET_KEY must be configured in production")
+    if _DEV_SECRET is None:
+        _DEV_SECRET = secrets.token_urlsafe(32)
+    return _DEV_SECRET
+
+
+class _SecretKeyProxy:
+    def __str__(self):
+        return get_secret_key()
+
+    def __repr__(self):
+        return repr(get_secret_key())
+
+    def __bytes__(self):
+        return get_secret_key().encode("utf-8")
+
+    def __len__(self):
+        return len(get_secret_key())
+
+    def encode(self, *args, **kwargs):
+        return get_secret_key().encode(*args, **kwargs)
+
+
+SECRET_KEY = _SecretKeyProxy()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
@@ -39,4 +63,4 @@ def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(to_encode, str(SECRET_KEY), algorithm=ALGORITHM)

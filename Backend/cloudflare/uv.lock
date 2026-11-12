@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.13"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -427,6 +427,15 @@ wheels = [
 ]
 
 [[package]]
+name = "micropip"
+version = "0.11.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fc/d3/b1c9d2f6d18ca2dba2d776eb1379a54ad4a76078b7c76147b2b3a80da8f6/micropip-0.11.1.tar.gz", hash = "sha256:85ca3e96a7ffc63934b50d7dcc4a1875875d52b76e7ed3fe5e2bbe283e6562dc", size = 1774023, upload-time = "2026-04-02T04:43:49.26Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/17/54/d737f98fe5da2fd3375de34e9231c56550eefdd33ae9b671a25070792430/micropip-0.11.1-py3-none-any.whl", hash = "sha256:768de165adb8e66906039d8fec4127a57f522dfdf8e6fbff877a4616941ecfd3", size = 115488, upload-time = "2026-04-02T04:43:47.433Z" },
+]
+
+[[package]]
 name = "pillow"
 version = "13.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -786,10 +795,12 @@ name = "resume-builder-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "anyio" },
     { name = "bcrypt" },
     { name = "email-validator" },
     { name = "fastapi" },
     { name = "groq" },
+    { name = "micropip" },
     { name = "python-dotenv" },
     { name = "python-jose" },
     { name = "python-multipart" },
@@ -806,10 +817,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = ">=4.16.0" },
     { name = "bcrypt", specifier = "==5.0.0" },
     { name = "email-validator", specifier = "==2.1.0" },
     { name = "fastapi", specifier = "==0.139.0" },
     { name = "groq", specifier = "==1.7.0" },
+    { name = "micropip", specifier = ">=0.11.1" },
     { name = "python-dotenv", specifier = "==1.2.2" },
     { name = "python-jose", specifier = "==3.5.0" },
     { name = "python-multipart", specifier = "==0.0.32" },

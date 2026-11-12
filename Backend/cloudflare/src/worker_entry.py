@@ -2,15 +2,15 @@ import os
 import sys
 from pathlib import Path
 
-import anyio.to_thread
-from workers import WorkerEntrypoint, asgi
-
-
 _backend_root = str(Path(__file__).resolve().parent)
 if _backend_root not in sys.path:
     sys.path.insert(0, _backend_root)
 
-_app = None
+os.environ["CLOUDFLARE_WORKERS"] = "1"
+os.environ["APP_ENV"] = "production"
+
+import anyio.to_thread
+from workers import WorkerEntrypoint, asgi
 
 
 async def _run_sync_without_threads(
@@ -27,9 +27,6 @@ anyio.to_thread.run_sync = _run_sync_without_threads
 
 
 def _configure_environment(env) -> None:
-    os.environ["APP_ENV"] = "production"
-    os.environ["CLOUDFLARE_WORKERS"] = "1"
-
     for key in (
         "SECRET_KEY",
         "GROQ_API_KEY",
@@ -42,19 +39,27 @@ def _configure_environment(env) -> None:
             os.environ[key] = str(value)
 
 
+# Pre-import database and FastAPI app during isolate startup
+# so module compilation does not count against per-request CPU limits!
+import database
+from routers import app
+
+
 class Default(WorkerEntrypoint):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._configured = False
+
     async def fetch(self, request):
-        global _app
+        try:
+            if not self._configured:
+                _configure_environment(self.env)
+                database.configure_worker_database(self.env.DB)
+                self._configured = True
 
-        if _app is None:
-            _configure_environment(self.env)
-
-            from database import configure_worker_database
-
-            configure_worker_database(self.env.DB)
-
-            from routers import app
-
-            _app = app
-
-        return await asgi.fetch(_app, request, self.env)
+            return await asgi.fetch(app, request, self.env)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            from workers import Response
+            return Response(f"Internal Worker Exception: {e}\n{traceback.format_exc()}", status=500)

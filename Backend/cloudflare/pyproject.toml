@@ -4,10 +4,12 @@ version = "0.1.0"
 description = "Resume Builder FastAPI backend for Cloudflare Workers"
 requires-python = ">=3.13"
 dependencies = [
+    "anyio>=4.16.0",
     "bcrypt==5.0.0",
     "email-validator==2.1.0",
     "fastapi==0.139.0",
     "groq==1.7.0",
+    "micropip>=0.11.1",
     "python-dotenv==1.2.2",
     "python-jose==3.5.0",
     "python-multipart==0.0.32",
