@@ -1,6 +1,7 @@
 # Resume Builder API
 
-FastAPI backend for the Resume Builder app. SQLite + SQLAlchemy, JWT auth, Groq-powered AI.
+FastAPI backend for the Resume Builder app. SQLAlchemy (SQLite locally,
+Postgres in production), JWT auth, Groq-powered AI.
 
 ## Run
 
@@ -8,6 +9,9 @@ FastAPI backend for the Resume Builder app. SQLite + SQLAlchemy, JWT auth, Groq-
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
+
+The database URL comes from `DATABASE_URL`; with it unset, a local
+`resume_builder.db` SQLite file is used.
 
 On startup the app creates any missing tables and runs the lightweight column
 migrations in `migrations.py`, so an existing database is upgraded in place.
@@ -185,33 +189,32 @@ invented numbers.
 - `sort_order` controls the order sections are returned in (ascending).
 - Dates are free-form strings (`"Jan 2021"`) so the frontend controls formatting.
 
-## Cloudflare Workers
+## Deploying to Vercel
 
-The Worker project is in `cloudflare/` so the existing `requirements.txt` remains
-available for local and conventional Python deployments. It uses Python Workers,
-FastAPI, SQLAlchemy, and a D1 binding.
-The shared backend modules live in `cloudflare/src/` so Pywrangler only scans the
-application source instead of the backend's local virtual environments;
-`main.py` preserves the usual `uvicorn main:app` entrypoint.
+This is a FastAPI app, so Vercel serves the whole API as a single Python
+Function with no build step. The sources live in `cloudflare/src/` for historical
+reasons; `main.py` is the entrypoint Vercel looks for.
 
-1. Install Node.js and `uv` 0.13.4 or newer, then change to `Backend/cloudflare`.
-2. Authenticate with Cloudflare: `uv run pywrangler login`.
-3. Create a fresh D1 database: `uv run pywrangler d1 create resume-builder-db`.
-   Copy the returned database ID into `wrangler.jsonc`.
-4. Replace `FRONTEND_ORIGINS` in `wrangler.jsonc` with the exact deployed
-   frontend origin.
-5. Add production secrets without committing them:
+1. Create a Vercel project from this repository and set **Root Directory** to
+   `Backend`. The FastAPI preset is then detected automatically: `main.py`
+   exports `app`, `requirements.txt` provides the dependencies, and
+   `.python-version` pins Python 3.14.
+2. Attach a Postgres database (Vercel Postgres / Neon) and set its connection
+   string as `DATABASE_URL` in the project's environment variables. SQLite does
+   not persist on Vercel — the filesystem is read-only apart from `/tmp` — so
+   without `DATABASE_URL` the API boots against a temporary database that is
+   wiped on the next cold start.
+3. Set `SECRET_KEY`, `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_MAX_TOKENS`, and
+   `FRONTEND_ORIGINS` (exact frontend origin, no wildcard) for Production.
+4. Deploy. Tables are created on first use, so a fresh database needs no
+   migration step.
 
-   ```sh
-   uv run pywrangler secret put SECRET_KEY
-   uv run pywrangler secret put GROQ_API_KEY
-   ```
+No `vercel.json` is needed. `.vercelignore` keeps local virtualenvs, SQLite
+files, secrets, and the unused Worker dependencies out of the upload.
 
-   Use a strong random `SECRET_KEY`. `GROQ_API_KEY` is required only for the AI
-   endpoints.
-6. Test locally with `uv run pywrangler dev`, then deploy with
-   `uv run pywrangler deploy`.
+### Cloudflare Workers (optional)
 
-The Worker creates its schema in D1 when it starts. This setup uses a new,
-empty database; it does not import data from `resume_builder.db`. D1 data is
-persistent, unlike a SQLite file in a Worker bundle.
+The Worker entrypoint (`cloudflare/worker_entry.py`, `wrangler.jsonc`) and its
+D1 setup are untouched and still usable via `uv run pywrangler deploy` from
+`Backend/cloudflare`. Delete `cloudflare/worker_entry.py`, `wrangler.jsonc`,
+`schema.sql`, and `pyproject.toml` if Vercel is the only target.

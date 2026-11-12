@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Local databases (Vercel functions have no persistent filesystem)
+*.db
+*.db-journal
+*.sqlite3
+
+# Secrets / local env
+.env
+.env.local
+*.dev.vars
+
+# Tooling / build output
+.vercel
+.wrangler/
+.pytest_cache/
+.ruff_cache/
+
+# Editors
+.vscode/
+.idea/
+.DS_Store
+
+# Local Cloudflare Worker installs
+Backend/cloudflare/python_modules/
+Backend/cloudflare/.venv-workers/
+Backend/cloudflare/pylock.toml

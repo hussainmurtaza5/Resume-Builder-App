@@ -3,6 +3,9 @@
 SQLAlchemy's ``create_all`` only creates *missing* tables, it never alters
 existing ones.  These helpers add the columns introduced by the resume section
 features to databases that were created before this change.
+
+These are SQLite-only (they use ``PRAGMA``); they are skipped on other
+backends such as the Postgres database used in production.
 """
 
 from sqlalchemy import text
@@ -48,6 +51,10 @@ def _column_names(conn, table: str) -> set[str]:
 
 def run_migrations(engine) -> list[str]:
     """Add any missing columns. Returns the list of applied changes."""
+    if engine.dialect.name != "sqlite":
+        # Fresh Postgres databases get complete tables from create_all().
+        return []
+
     applied: list[str] = []
 
     with engine.begin() as conn:

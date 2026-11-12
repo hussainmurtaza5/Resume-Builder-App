@@ -1,0 +1,21 @@
+# Only the API sources, requirements.txt and entrypoint should be uploaded.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Local databases and secrets
+*.db
+*.db-journal
+.env
+.env.local
+*.dev.vars
+
+# Cloudflare Worker leftovers (nested deps are huge and not used on Vercel)
+cloudflare/python_modules/
+cloudflare/.venv/
+cloudflare/.venv-workers/
+cloudflare/.wrangler/
+cloudflare/uv.lock
+cloudflare/pylock.toml
+cloudflare/schema.sql

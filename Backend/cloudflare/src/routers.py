@@ -33,8 +33,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from migrations import run_migrations
 
 if os.getenv("CLOUDFLARE_WORKERS") != "1":
-    models.Base.metadata.create_all(bind=engine)
-    run_migrations(engine)
+    # Serverless runtimes import the app before the first request, so a failure
+    # here would take down every route. Log it and let the request fail with a
+    # clear database error instead.
+    try:
+        models.Base.metadata.create_all(bind=engine)
+        run_migrations(engine)
+    except Exception:
+        logger.exception(
+            "Database initialization failed. Check DATABASE_URL / database availability."
+        )
 
 APP_ENV = os.getenv("APP_ENV", "development").lower()
 app = FastAPI(
