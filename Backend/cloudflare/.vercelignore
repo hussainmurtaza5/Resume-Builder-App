@@ -1,0 +1,15 @@
+.venv/
+.venv-workers/
+python_modules/
+.wrangler/
+__pycache__/
+*.py[cod]
+*.db
+*.sqlite3
+.env*
+!.env.example
+uv.lock
+pylock.toml
+wrangler.jsonc
+schema.sql
+src/worker_entry.py

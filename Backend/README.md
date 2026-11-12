@@ -192,17 +192,13 @@ invented numbers.
 ## Deploying to Vercel
 
 This is a FastAPI app, so Vercel serves the whole API as a single Python
-Function with no build step. The sources live in `cloudflare/src/` for historical
-reasons; `main.py` is the entrypoint Vercel looks for.
+Function with no build step. The Vercel project should use `Backend/cloudflare`
+as its Root Directory. That directory is now a standalone FastAPI deployment:
+`main.py` exports `app` and `requirements.txt` defines the runtime dependencies.
 
 1. Create a Vercel project from this repository and set **Root Directory** to
-   `Backend`. The FastAPI preset is then detected automatically: `main.py`
-   exports `app`, `requirements.txt` provides the dependencies, and
-   `.python-version` pins Python 3.14.
-   Pointing it at `Backend/cloudflare` instead fails with
-   `FASTAPI_ENTRYPOINT_NOT_FOUND`: that folder has no `requirements.txt`
-   and no entrypoint at its top level, only the Cloudflare Workers
-   `pyproject.toml` and `src/` modules.
+   `Backend/cloudflare`. Vercel detects the FastAPI entrypoint from `main.py`
+   and installs the dependencies from `requirements.txt`.
 2. Attach a Postgres database (Vercel Postgres / Neon) and set its connection
    string as `DATABASE_URL` in the project's environment variables. SQLite does
    not persist on Vercel — the filesystem is read-only apart from `/tmp` — so
@@ -213,12 +209,5 @@ reasons; `main.py` is the entrypoint Vercel looks for.
 4. Deploy. Tables are created on first use, so a fresh database needs no
    migration step.
 
-No `vercel.json` is needed. `.vercelignore` keeps local virtualenvs, SQLite
-files, secrets, and the unused Worker dependencies out of the upload.
-
-### Cloudflare Workers (optional)
-
-The Worker entrypoint (`cloudflare/worker_entry.py`, `wrangler.jsonc`) and its
-D1 setup are untouched and still usable via `uv run pywrangler deploy` from
-`Backend/cloudflare`. Delete `cloudflare/worker_entry.py`, `wrangler.jsonc`,
-`schema.sql`, and `pyproject.toml` if Vercel is the only target.
+`.vercelignore` keeps local virtualenvs, SQLite files, secrets, and development
+artifacts out of the upload.

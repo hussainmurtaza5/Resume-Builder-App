@@ -30,7 +30,7 @@ def get_secret_key() -> str:
     if configured_secret:
         return configured_secret
     app_env = os.getenv("APP_ENV", "development").lower()
-    if app_env in {"production", "prod"} and os.getenv("CLOUDFLARE_WORKERS") != "1":
+    if app_env in {"production", "prod"}:
         raise RuntimeError("SECRET_KEY must be configured in production")
     if _DEV_SECRET is None:
         _DEV_SECRET = secrets.token_urlsafe(32)

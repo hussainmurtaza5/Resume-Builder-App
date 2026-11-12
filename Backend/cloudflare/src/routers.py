@@ -16,7 +16,7 @@ from jose import JWTError, jwt
 from dotenv import load_dotenv
 from xml.sax.saxutils import escape
 import groq
-from groq import AsyncGroq, Groq
+from groq import Groq
 import io
 import json
 import logging
@@ -39,17 +39,16 @@ from auth import hash_password, verify_password, create_access_token, SECRET_KEY
 from fastapi.middleware.cors import CORSMiddleware
 from migrations import run_migrations
 
-if os.getenv("CLOUDFLARE_WORKERS") != "1":
-    # Serverless runtimes import the app before the first request, so a failure
-    # here would take down every route. Log it and let the request fail with a
-    # clear database error instead.
-    try:
-        models.Base.metadata.create_all(bind=engine)
-        run_migrations(engine)
-    except Exception:
-        logger.exception(
-            "Database initialization failed. Check DATABASE_URL / database availability."
-        )
+# Vercel imports the ASGI app during function startup. Keep initialization
+# best-effort so a temporary database outage does not make the whole function
+# impossible to import; requests will report the underlying database error.
+try:
+    models.Base.metadata.create_all(bind=engine)
+    run_migrations(engine)
+except Exception:
+    logger.exception(
+        "Database initialization failed. Check DATABASE_URL / database availability."
+    )
 
 APP_ENV = os.getenv("APP_ENV", "development").lower()
 app = FastAPI(
@@ -66,10 +65,7 @@ def get_groq_client():
     if _groq_client is not None:
         return _groq_client
     groq_api_key = os.getenv("GROQ_API_KEY")
-    workers_runtime = os.getenv("CLOUDFLARE_WORKERS") == "1"
-    if groq_api_key and workers_runtime:
-        _groq_client = AsyncGroq(api_key=groq_api_key)
-    elif groq_api_key:
+    if groq_api_key:
         _groq_client = Groq(api_key=groq_api_key)
     return _groq_client
 
@@ -154,7 +150,7 @@ class RateLimitMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Vercel/Cloudflare provide this header at the trusted edge. Use the
+        # Vercel provides this header at the trusted edge. Use the
         # socket address as the fallback for local/dev requests.
         forwarded = request.headers.get("x-forwarded-for")
         client = (forwarded.split(",")[0].strip() if forwarded else None) or (
@@ -1680,9 +1676,7 @@ async def _groq_chat(prompt: str, temperature: float = 0.7) -> str:
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        workers_runtime = os.getenv("CLOUDFLARE_WORKERS") == "1"
-        chat_completion = await completion if workers_runtime else completion
-        content = chat_completion.choices[0].message.content or ""
+        content = completion.choices[0].message.content or ""
         return content.strip()
     except groq.RateLimitError:
         raise HTTPException(

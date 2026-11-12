@@ -6,7 +6,6 @@ hosted Postgres connection string, because the function filesystem is
 read-only apart from a per-instance ``/tmp``.
 """
 
-import json
 import logging
 import os
 from pathlib import Path
@@ -61,17 +60,3 @@ engine = _create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
-
-
-def configure_worker_database(binding):
-    """Configure SQLAlchemy to use the current Cloudflare D1 binding."""
-    global engine, SessionLocal
-
-    # Cloudflare-only dependency, imported lazily so the app can run elsewhere.
-    from sqlalchemy_cloudflare_d1 import create_engine_from_binding
-
-    engine = create_engine_from_binding(binding)
-    engine.dialect._json_serializer = json.dumps
-    engine.dialect._json_deserializer = json.loads
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    return engine
