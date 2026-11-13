@@ -69,7 +69,7 @@ def get_groq_client():
         _groq_client = Groq(api_key=groq_api_key)
     return _groq_client
 
-frontend_origins = [
+configured_frontend_origins = [
     origin.strip()
     for origin in os.getenv(
         "FRONTEND_ORIGINS",
@@ -77,6 +77,10 @@ frontend_origins = [
     ).split(",")
     if origin.strip()
 ]
+frontend_origins = list(dict.fromkeys([
+    *configured_frontend_origins,
+    "https://hussainmurtaza5.github.io",
+]))
 if "*" in frontend_origins:
     raise RuntimeError("FRONTEND_ORIGINS cannot use '*' with credentialed requests")
 
